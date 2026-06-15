@@ -1,7 +1,7 @@
 // ===== 设置 =====
 
 export type ApiMode = 'images' | 'responses'
-export type AppMode = 'gallery' | 'agent'
+export type AppMode = 'gallery' | 'agent' | 'matting'
 export type ReferenceImageEditAction = 'ask' | 'replace-reference' | 'add-mask'
 export const ZIP_DOWNLOAD_ROUTE_VALUES = [
   'task-selection',
@@ -213,8 +213,12 @@ export interface TaskRecord {
   isFavorite?: boolean
   /** 所属收藏夹 ID 列表 */
   favoriteCollectionIds?: string[]
-  /** 来源模式：画廊 / Agent */
+  /** 来源模式：画廊 / Agent / 批量抠图 */
   sourceMode?: AppMode
+  /** 批量抠图批次 ID */
+  mattingBatchId?: string
+  /** 批量抠图原始文件名 */
+  mattingSourceFileName?: string
   /** Agent 对话 ID */
   agentConversationId?: string
   /** Agent 轮次 ID */

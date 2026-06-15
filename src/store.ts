@@ -52,6 +52,7 @@ import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { getChangedParams, normalizeParamsForSettings } from './lib/paramCompatibility'
 import { createTransparentOutputMeta, getTransparentRequestParams, removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
+import { DEFAULT_MATTING_PROMPT, MATTING_BATCH_CONCURRENCY, createMattingTaskParams } from './lib/matting'
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate'
 
 export const ALL_FAVORITES_COLLECTION_ID = '__all_favorites__'
@@ -719,7 +720,11 @@ function mergePersistedState(persistedState: unknown, currentState: AppState): A
     typeof persisted.activeAgentConversationId === 'string' && (!hasPersistedAgentConversations || agentConversations.some((conversation) => conversation.id === persisted.activeAgentConversationId))
       ? persisted.activeAgentConversationId
       : agentConversations[0]?.id ?? null
-  const appMode = persisted.appMode === 'agent' ? 'agent' : 'gallery'
+  const appMode: AppMode = persisted.appMode === 'agent'
+    ? 'agent'
+    : persisted.appMode === 'matting'
+    ? 'matting'
+    : 'gallery'
   const galleryInputDraft = settings.persistInputOnRestart
     ? normalizeAgentInputDraft(persisted.galleryInputDraft ?? {
         prompt: persisted.prompt,
@@ -1147,7 +1152,7 @@ export const useStore = create<AppState>()(
       // Mode
       appMode: 'gallery',
       setAppMode: (appMode) => {
-        if (appMode === 'gallery') {
+        if (appMode === 'gallery' || appMode === 'matting') {
           const state = get()
           const agentInputDrafts = saveActiveAgentInputDrafts(state)
           const galleryInputDraft = saveGalleryInputDraft(state)
@@ -4480,6 +4485,123 @@ export async function deleteFavoriteCollection(collectionId: string, deleteTasks
   }
   useStore.getState().setSelectedFavoriteCollectionIds((ids) => ids.filter((id) => id !== collectionId))
   useStore.getState().showToast(`已删除收藏夹「${collection.name}」`, 'success')
+}
+
+/** 提交单张抠图任务 */
+export async function submitMattingTask(options: {
+  imageId: string
+  dataUrl: string
+  fileName?: string
+  batchId?: string
+  prompt?: string
+}): Promise<string | null> {
+  const { settings, showToast, setShowSettings } = useStore.getState()
+  const normalizedSettings = normalizeSettings(settings)
+  const activeProfile = getActiveApiProfile(settings)
+  const requestSettings = createSettingsForApiProfile(normalizedSettings, activeProfile)
+  const validationError = validateApiProfile(activeProfile)
+
+  if (validationError) {
+    showToast(`请先完善请求 API 配置：${validationError}`, 'error')
+    setShowSettings(true)
+    return null
+  }
+
+  await storeImage(options.dataUrl)
+
+  const prompt = (options.prompt ?? DEFAULT_MATTING_PROMPT).trim()
+  const normalizedParams = normalizeParamsForSettings(createMattingTaskParams(), requestSettings, { hasInputImages: true })
+  const taskParams = getTransparentRequestParams(normalizedParams)
+  const transparentMeta = createTransparentOutputMeta(prompt)
+
+  const taskId = genId()
+  const task: TaskRecord = {
+    id: taskId,
+    prompt,
+    params: taskParams,
+    apiProvider: activeProfile.provider,
+    apiProfileId: activeProfile.id,
+    apiProfileName: activeProfile.name,
+    apiMode: activeProfile.apiMode,
+    apiModel: activeProfile.model,
+    inputImageIds: [options.imageId],
+    maskTargetImageId: null,
+    maskImageId: null,
+    transparentOutput: transparentMeta.transparentOutput,
+    transparentPrompt: transparentMeta.effectivePrompt,
+    outputImages: [],
+    status: 'running',
+    error: null,
+    createdAt: Date.now(),
+    finishedAt: null,
+    elapsed: null,
+    sourceMode: 'matting',
+    mattingBatchId: options.batchId,
+    mattingSourceFileName: options.fileName,
+  }
+
+  const latestTasks = useStore.getState().tasks
+  useStore.getState().setTasks([task, ...latestTasks])
+  await putTask(task)
+  executeTask(taskId)
+  return taskId
+}
+
+export interface MattingBatchItemInput {
+  imageId: string
+  dataUrl: string
+  fileName: string
+}
+
+/** 按并发上限提交批量抠图任务 */
+export async function runMattingBatch(
+  items: MattingBatchItemInput[],
+  options: {
+    prompt?: string
+    onTaskSubmitted?: (index: number, taskId: string) => void
+  } = {},
+): Promise<string | null> {
+  if (items.length === 0) return null
+
+  const { settings, showToast, setShowSettings } = useStore.getState()
+  const activeProfile = getActiveApiProfile(settings)
+  const validationError = validateApiProfile(activeProfile)
+  if (validationError) {
+    showToast(`请先完善请求 API 配置：${validationError}`, 'error')
+    setShowSettings(true)
+    return null
+  }
+
+  const batchId = genId()
+  let nextIndex = 0
+  let activeCount = 0
+
+  await new Promise<void>((resolve) => {
+    const startNext = () => {
+      while (activeCount < MATTING_BATCH_CONCURRENCY && nextIndex < items.length) {
+        const currentIndex = nextIndex
+        const item = items[currentIndex]
+        nextIndex += 1
+        activeCount += 1
+        void submitMattingTask({
+          imageId: item.imageId,
+          dataUrl: item.dataUrl,
+          fileName: item.fileName,
+          batchId,
+          prompt: options.prompt,
+        }).then((taskId) => {
+          activeCount -= 1
+          if (taskId) options.onTaskSubmitted?.(currentIndex, taskId)
+          if (nextIndex >= items.length && activeCount === 0) resolve()
+          else startNext()
+        })
+      }
+      if (items.length === 0) resolve()
+    }
+    startNext()
+  })
+
+  return batchId
 }
 
 /** 重试失败的任务：创建新任务并执行 */
