@@ -52,7 +52,7 @@ import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { getChangedParams, normalizeParamsForSettings } from './lib/paramCompatibility'
 import { createTransparentOutputMeta, getTransparentRequestParams, removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
-import { MATTING_BATCH_CONCURRENCY, createMattingTaskParams } from './lib/matting'
+import { MATTING_BATCH_CONCURRENCY, createMattingTaskParams, getMattingRequestParams } from './lib/matting'
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate'
 
 export const ALL_FAVORITES_COLLECTION_ID = '__all_favorites__'
@@ -2757,11 +2757,8 @@ async function storeTaskOutputImages(task: TaskRecord, images: string[]) {
           outputDataUrl = await removeKeyedBackgroundFromDataUrl(dataUrl)
           transparentOriginalImageIds.push(originalImgId)
         } catch (err) {
-          console.warn('透明背景后处理失败，已回退为原始输出', err)
-          outputIds.push(originalImgId)
-          outputDataUrls.push(dataUrl)
-          transparentOriginalImageIds.push('')
-          continue
+          const detail = err instanceof Error ? err.message : String(err)
+          throw new Error(`透明 PNG 后处理失败，未保存非透明原图：${detail}`)
         }
       }
 
@@ -4515,7 +4512,8 @@ export async function submitMattingTask(options: {
     return null
   }
   const normalizedParams = normalizeParamsForSettings(createMattingTaskParams(), requestSettings, { hasInputImages: true })
-  const taskParams = getTransparentRequestParams(normalizedParams)
+  const taskParams = getMattingRequestParams(normalizedParams)
+  const transparentMeta = createTransparentOutputMeta(prompt)
 
   const taskId = genId()
   const task: TaskRecord = {
@@ -4531,7 +4529,7 @@ export async function submitMattingTask(options: {
     maskTargetImageId: null,
     maskImageId: null,
     transparentOutput: true,
-    transparentPrompt: prompt,
+    transparentPrompt: transparentMeta.effectivePrompt,
     outputImages: [],
     status: 'running',
     error: null,

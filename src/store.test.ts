@@ -337,9 +337,8 @@ describe('mask draft lifecycle in store actions', () => {
     await clearImages()
   })
 
-  it('falls back to the original output when transparent post-processing fails', async () => {
+  it('fails transparent output instead of falling back to a non-transparent original', async () => {
     const { callImageApi } = await import('./lib/api')
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.mocked(callImageApi).mockClear()
     vi.mocked(removeKeyedBackgroundFromDataUrl).mockClear()
     vi.mocked(removeKeyedBackgroundFromDataUrl).mockRejectedValueOnce(new Error('post-process failed'))
@@ -367,12 +366,11 @@ describe('mask draft lifecycle in store actions', () => {
     const [task] = useStore.getState().tasks
     expect(task).toMatchObject({
       transparentOutput: true,
-      status: 'done',
+      status: 'error',
+      error: '透明 PNG 后处理失败，未保存非透明原图：post-process failed',
     })
-    expect(task.transparentOriginalImages).toEqual([''])
-    const outputImage = await getImage(task.outputImages[0])
-    expect(outputImage?.dataUrl).toBe('data:image/png;base64,generated')
-    warnSpy.mockRestore()
+    expect(task.outputImages).toEqual([])
+    expect(task.transparentOriginalImages).toBeUndefined()
     await clearTasks()
     await clearImages()
   })

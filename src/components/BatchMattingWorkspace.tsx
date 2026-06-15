@@ -319,7 +319,7 @@ export default function BatchMattingWorkspace() {
             placeholder={SUGGESTED_MATTING_PROMPT}
           />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            提示词将原样发送给 API，不会自动追加额外指令。若需透明 PNG 后处理，请在提示词中自行说明纯色背景规则（可参考占位示例）。
+            提交时会强制使用 PNG 透明输出，并自动追加纯色键背景规则用于透明后处理；此处只需填写主体和抠图要求。
           </p>
         </div>
 
