@@ -7,7 +7,7 @@ import {
   submitMattingTask,
   useStore,
 } from '../store'
-import { DEFAULT_MATTING_PROMPT } from '../lib/matting'
+import { DEFAULT_MATTING_PROMPT, SUGGESTED_MATTING_PROMPT } from '../lib/matting'
 import { downloadImageIds, downloadImageEntriesAsZip, formatExportFileTime } from '../lib/downloadImages'
 import { validateApiProfile, getActiveApiProfile } from '../lib/apiProfiles'
 
@@ -134,6 +134,12 @@ export default function BatchMattingWorkspace() {
       return
     }
 
+    const trimmedPrompt = prompt.trim()
+    if (!trimmedPrompt) {
+      showToast('请输入抠图提示词', 'error')
+      return
+    }
+
     setIsRunning(true)
     const submittedTaskIds = new Map<string, string>()
 
@@ -144,7 +150,7 @@ export default function BatchMattingWorkspace() {
         fileName: item.fileName,
       })),
       {
-        prompt: prompt.trim() || DEFAULT_MATTING_PROMPT,
+        prompt: trimmedPrompt,
         onTaskSubmitted: (index, taskId) => {
           const item = pendingItems[index]
           if (!item) return
@@ -167,11 +173,17 @@ export default function BatchMattingWorkspace() {
       return
     }
 
+    const trimmedPrompt = prompt.trim()
+    if (!trimmedPrompt) {
+      showToast('请输入抠图提示词', 'error')
+      return
+    }
+
     const taskId = await submitMattingTask({
       imageId: item.imageId,
       dataUrl: item.dataUrl,
       fileName: item.fileName,
-      prompt: prompt.trim() || DEFAULT_MATTING_PROMPT,
+      prompt: trimmedPrompt,
     })
 
     if (!taskId) return
@@ -289,16 +301,25 @@ export default function BatchMattingWorkspace() {
         </div>
 
         <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
-          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">抠图提示词</label>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-200">抠图提示词</label>
+            <button
+              type="button"
+              onClick={() => setPrompt(SUGGESTED_MATTING_PROMPT)}
+              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              填入示例
+            </button>
+          </div>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            rows={3}
+            rows={8}
             className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100"
-            placeholder={DEFAULT_MATTING_PROMPT}
+            placeholder={SUGGESTED_MATTING_PROMPT}
           />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            系统会自动追加透明背景指令，并在返回后本地去除纯色背景。
+            提示词将原样发送给 API，不会自动追加额外指令。若需透明 PNG 后处理，请在提示词中自行说明纯色背景规则（可参考占位示例）。
           </p>
         </div>
 

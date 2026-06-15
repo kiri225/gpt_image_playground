@@ -52,7 +52,7 @@ import { validateMaskMatchesImage } from './lib/canvasImage'
 import { orderInputImagesForMask } from './lib/mask'
 import { getChangedParams, normalizeParamsForSettings } from './lib/paramCompatibility'
 import { createTransparentOutputMeta, getTransparentRequestParams, removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
-import { DEFAULT_MATTING_PROMPT, MATTING_BATCH_CONCURRENCY, createMattingTaskParams } from './lib/matting'
+import { MATTING_BATCH_CONCURRENCY, createMattingTaskParams } from './lib/matting'
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate'
 
 export const ALL_FAVORITES_COLLECTION_ID = '__all_favorites__'
@@ -4509,10 +4509,13 @@ export async function submitMattingTask(options: {
 
   await storeImage(options.dataUrl)
 
-  const prompt = (options.prompt ?? DEFAULT_MATTING_PROMPT).trim()
+  const prompt = (options.prompt ?? '').trim()
+  if (!prompt) {
+    showToast('请输入抠图提示词', 'error')
+    return null
+  }
   const normalizedParams = normalizeParamsForSettings(createMattingTaskParams(), requestSettings, { hasInputImages: true })
   const taskParams = getTransparentRequestParams(normalizedParams)
-  const transparentMeta = createTransparentOutputMeta(prompt)
 
   const taskId = genId()
   const task: TaskRecord = {
@@ -4527,8 +4530,8 @@ export async function submitMattingTask(options: {
     inputImageIds: [options.imageId],
     maskTargetImageId: null,
     maskImageId: null,
-    transparentOutput: transparentMeta.transparentOutput,
-    transparentPrompt: transparentMeta.effectivePrompt,
+    transparentOutput: true,
+    transparentPrompt: prompt,
     outputImages: [],
     status: 'running',
     error: null,
