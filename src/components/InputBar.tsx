@@ -430,7 +430,6 @@ function AtImageOptionThumb({ option }: { option: AtImageOption }) {
 
 export default function InputBar() {
   const appMode = useStore((s) => s.appMode)
-  if (appMode === 'matting') return null
 
   const prompt = useStore((s) => s.prompt)
   const setPrompt = useStore((s) => s.setPrompt)
@@ -2131,6 +2130,8 @@ export default function InputBar() {
 
   const showFavoriteCollectionBatchBar = inCollectionOverview && selectedFavoriteCollectionIds.length > 0
   const showTaskBatchBar = !showFavoriteCollectionBatchBar && selectedTaskIds.length > 0
+
+  if (appMode === 'matting') return null
 
   return (
     <>
