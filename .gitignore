@@ -1,5 +1,6 @@
 node_modules/
 dist/
 .env.local
+.env.docker
 dev-proxy.config.json
 .wrangler/

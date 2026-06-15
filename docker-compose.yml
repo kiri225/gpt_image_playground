@@ -1,0 +1,16 @@
+services:
+  gpt-image-playground:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: gpt-image-playground:local
+    container_name: gpt-image-playground
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3080}:80"
+    environment:
+      DEFAULT_API_URL: ${DEFAULT_API_URL:-https://api.mouxihub.com/v1}
+      API_PROXY_URL: ${API_PROXY_URL:-https://api.mouxihub.com/v1}
+      ENABLE_API_PROXY: ${ENABLE_API_PROXY:-true}
+      LOCK_API_PROXY: ${LOCK_API_PROXY:-true}
+      SHOW_DEFAULT_CONFIG_ONLY: ${SHOW_DEFAULT_CONFIG_ONLY:-false}
