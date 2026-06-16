@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TaskParams } from '../types'
 import {
   createInputImageFromFile,
   deleteImageIfUnreferenced,
@@ -10,6 +11,7 @@ import {
 import { DEFAULT_MATTING_PROMPT, SUGGESTED_MATTING_PROMPT } from '../lib/matting'
 import { downloadImageIds, downloadImageEntriesAsZip, formatExportFileTime } from '../lib/downloadImages'
 import { validateApiProfile, getActiveApiProfile } from '../lib/apiProfiles'
+import Select from './Select'
 
 interface MattingQueueItem {
   id: string
@@ -20,6 +22,7 @@ interface MattingQueueItem {
 }
 
 type MattingItemStatus = 'pending' | 'running' | 'done' | 'error'
+type MattingQuality = TaskParams['quality']
 
 function getItemStatus(item: MattingQueueItem, taskStatus?: string): MattingItemStatus {
   if (!item.taskId) return 'pending'
@@ -55,12 +58,33 @@ export default function BatchMattingWorkspace() {
 
   const [queue, setQueue] = useState<MattingQueueItem[]>([])
   const [prompt, setPrompt] = useState(DEFAULT_MATTING_PROMPT)
+  const [quality, setQuality] = useState<MattingQuality>('high')
   const [isRunning, setIsRunning] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeProfile = useMemo(() => getActiveApiProfile(settings), [settings])
   const apiReady = !validateApiProfile(activeProfile)
+  const isFalProvider = activeProfile.provider === 'fal'
+  const qualityOptions = useMemo(() => (
+    isFalProvider
+      ? [
+          { label: 'low', value: 'low' },
+          { label: 'medium', value: 'medium' },
+          { label: 'high', value: 'high' },
+        ]
+      : [
+          { label: 'auto', value: 'auto' },
+          { label: 'low', value: 'low' },
+          { label: 'medium', value: 'medium' },
+          { label: 'high', value: 'high' },
+        ]
+  ), [isFalProvider])
+  const qualitySelectValue = activeProfile.codexCli
+    ? 'auto'
+    : isFalProvider && quality === 'auto'
+      ? 'high'
+      : quality
 
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
 
@@ -151,6 +175,7 @@ export default function BatchMattingWorkspace() {
       })),
       {
         prompt: trimmedPrompt,
+        quality,
         onTaskSubmitted: (index, taskId) => {
           const item = pendingItems[index]
           if (!item) return
@@ -164,7 +189,7 @@ export default function BatchMattingWorkspace() {
 
     setIsRunning(false)
     showToast('批量抠图任务已全部提交', 'success')
-  }, [apiReady, prompt, queue, setShowSettings, showToast])
+  }, [apiReady, prompt, quality, queue, setShowSettings, showToast])
 
   const retryItem = useCallback(async (item: MattingQueueItem) => {
     if (!apiReady) {
@@ -184,6 +209,7 @@ export default function BatchMattingWorkspace() {
       dataUrl: item.dataUrl,
       fileName: item.fileName,
       prompt: trimmedPrompt,
+      quality,
     })
 
     if (!taskId) return
@@ -191,7 +217,11 @@ export default function BatchMattingWorkspace() {
       entry.id === item.id ? { ...entry, taskId } : entry
     )))
     showToast(`已重新提交「${item.fileName}」`, 'success')
-  }, [apiReady, prompt, setShowSettings, showToast])
+  }, [apiReady, prompt, quality, setShowSettings, showToast])
+
+  useEffect(() => {
+    if (isFalProvider && quality === 'auto') setQuality('high')
+  }, [isFalProvider, quality])
 
   const downloadAll = useCallback(async () => {
     const entries = enrichedQueue
@@ -321,6 +351,21 @@ export default function BatchMattingWorkspace() {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             提交时会强制生成 PNG，并使用与画廊一致的透明背景后处理；此处只需填写主体和抠图要求。
           </p>
+          <div className="mt-4 max-w-xs">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">图片质量</span>
+              <Select
+                value={qualitySelectValue}
+                onChange={(value) => setQuality(value as MattingQuality)}
+                options={qualityOptions}
+                disabled={activeProfile.codexCli}
+                className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 transition focus:border-blue-400 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-gray-100"
+              />
+            </label>
+            {activeProfile.codexCli && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Codex CLI 模式不支持质量参数。</p>
+            )}
+          </div>
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">

@@ -4491,6 +4491,7 @@ export async function submitMattingTask(options: {
   fileName?: string
   batchId?: string
   prompt?: string
+  quality?: TaskParams['quality']
 }): Promise<string | null> {
   const { settings, showToast, setShowSettings } = useStore.getState()
   const normalizedSettings = normalizeSettings(settings)
@@ -4511,7 +4512,11 @@ export async function submitMattingTask(options: {
     showToast('请输入抠图提示词', 'error')
     return null
   }
-  const normalizedParams = normalizeParamsForSettings(createMattingTaskParams(), requestSettings, { hasInputImages: true })
+  const mattingParams = {
+    ...createMattingTaskParams(),
+    ...(options.quality ? { quality: options.quality } : {}),
+  }
+  const normalizedParams = normalizeParamsForSettings(mattingParams, requestSettings, { hasInputImages: true })
   const taskParams = getMattingRequestParams(normalizedParams)
   const transparentMeta = createTransparentOutputMeta(prompt)
 
@@ -4559,6 +4564,7 @@ export async function runMattingBatch(
   items: MattingBatchItemInput[],
   options: {
     prompt?: string
+    quality?: TaskParams['quality']
     onTaskSubmitted?: (index: number, taskId: string) => void
   } = {},
 ): Promise<string | null> {
@@ -4590,6 +4596,7 @@ export async function runMattingBatch(
           fileName: item.fileName,
           batchId,
           prompt: options.prompt,
+          quality: options.quality,
         }).then((taskId) => {
           activeCount -= 1
           if (taskId) options.onTaskSubmitted?.(currentIndex, taskId)

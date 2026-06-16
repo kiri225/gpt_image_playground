@@ -501,6 +501,7 @@ describe('matting task submission', () => {
       dataUrl: 'data:image/png;base64,input',
       fileName: 'input.png',
       prompt: '只保留主体，输出透明 PNG',
+      quality: 'medium',
     })
     for (let i = 0; i < 5; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -512,6 +513,7 @@ describe('matting task submission', () => {
         output_format: 'png',
         output_compression: null,
         transparent_output: true,
+        quality: 'medium',
       }),
     }))
     expect(removeKeyedBackgroundFromDataUrl).toHaveBeenCalledWith('data:image/png;base64,keyed-output')
@@ -525,6 +527,7 @@ describe('matting task submission', () => {
       params: expect.objectContaining({
         output_format: 'png',
         transparent_output: true,
+        quality: 'medium',
       }),
     })
     expect(task.transparentOriginalImages).toHaveLength(1)
