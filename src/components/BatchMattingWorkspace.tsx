@@ -233,7 +233,7 @@ export default function BatchMattingWorkspace() {
         <div className="mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">批量抠图</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            上传多张图片，自动调用图像编辑与透明背景后处理，批量生成 PNG 透明底素材。
+            上传多张图片，自动复用画廊透明背景后处理，批量生成 PNG 透明底素材。
           </p>
         </div>
 
@@ -319,7 +319,7 @@ export default function BatchMattingWorkspace() {
             placeholder={SUGGESTED_MATTING_PROMPT}
           />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            提交时会强制请求 PNG 透明输出，不会追加背景指令；此处只需填写主体和抠图要求。
+            提交时会强制生成 PNG，并使用与画廊一致的透明背景后处理；此处只需填写主体和抠图要求。
           </p>
         </div>
 

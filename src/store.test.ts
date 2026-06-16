@@ -481,10 +481,10 @@ describe('matting task submission', () => {
     })
   })
 
-  it('requests native transparent PNG output without appending background instructions', async () => {
+  it('uses gallery-style transparent post-processing for matting output', async () => {
     const { callImageApi } = await import('./lib/api')
     vi.mocked(callImageApi).mockResolvedValueOnce({
-      images: ['data:image/png;base64,native-transparent'],
+      images: ['data:image/png;base64,keyed-output'],
       actualParams: { output_format: 'png' },
       actualParamsList: [{ output_format: 'png' }],
       revisedPrompts: [],
@@ -507,29 +507,31 @@ describe('matting task submission', () => {
     }
 
     expect(callImageApi).toHaveBeenCalledWith(expect.objectContaining({
-      prompt: '只保留主体，输出透明 PNG',
+      prompt: 'transparent:只保留主体，输出透明 PNG',
       params: expect.objectContaining({
         output_format: 'png',
         output_compression: null,
         transparent_output: true,
       }),
     }))
-    expect(removeKeyedBackgroundFromDataUrl).not.toHaveBeenCalled()
+    expect(removeKeyedBackgroundFromDataUrl).toHaveBeenCalledWith('data:image/png;base64,keyed-output')
     const [task] = useStore.getState().tasks
     expect(task).toMatchObject({
       prompt: '只保留主体，输出透明 PNG',
       sourceMode: 'matting',
+      transparentOutput: true,
+      transparentPrompt: 'transparent:只保留主体，输出透明 PNG',
       status: 'done',
       params: expect.objectContaining({
         output_format: 'png',
         transparent_output: true,
       }),
     })
-    expect(task.transparentOutput).toBeUndefined()
-    expect(task.transparentPrompt).toBeUndefined()
-    expect(task.transparentOriginalImages).toBeUndefined()
+    expect(task.transparentOriginalImages).toHaveLength(1)
     const outputImage = await getImage(task.outputImages[0])
-    expect(outputImage?.dataUrl).toBe('data:image/png;base64,native-transparent')
+    const originalImage = await getImage(task.transparentOriginalImages![0])
+    expect(outputImage?.dataUrl).toBe('transparent:data:image/png;base64,keyed-output')
+    expect(originalImage?.dataUrl).toBe('data:image/png;base64,keyed-output')
   })
 })
 

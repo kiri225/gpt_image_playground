@@ -8,8 +8,8 @@ export const DEFAULT_MATTING_PROMPT = ''
 /** 输入框占位示例，不会自动追加到请求中 */
 export const SUGGESTED_MATTING_PROMPT = [
   '保持画面主体完整不变，去除背景，仅保留主体。',
-  '输出原生 PNG 透明背景图片，透明区域保留 alpha 通道。',
-  '主体边缘清晰自然，不添加纯色背景、描边、光晕、投影或反射。',
+  '主体边缘清晰自然，不添加描边、光晕、投影或反射。',
+  '输出适合透明背景后处理的 PNG 素材。',
 ].join('\n')
 
 export const MATTING_BATCH_CONCURRENCY = 2

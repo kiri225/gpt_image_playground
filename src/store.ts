@@ -4513,6 +4513,7 @@ export async function submitMattingTask(options: {
   }
   const normalizedParams = normalizeParamsForSettings(createMattingTaskParams(), requestSettings, { hasInputImages: true })
   const taskParams = getMattingRequestParams(normalizedParams)
+  const transparentMeta = createTransparentOutputMeta(prompt)
 
   const taskId = genId()
   const task: TaskRecord = {
@@ -4527,6 +4528,8 @@ export async function submitMattingTask(options: {
     inputImageIds: [options.imageId],
     maskTargetImageId: null,
     maskImageId: null,
+    transparentOutput: transparentMeta.transparentOutput,
+    transparentPrompt: transparentMeta.effectivePrompt,
     outputImages: [],
     status: 'running',
     error: null,
@@ -4614,7 +4617,7 @@ export async function retryTask(task: TaskRecord) {
     : shouldUseTransparentOutput
       ? getTransparentRequestParams(normalizedParams)
       : { ...normalizedParams, transparent_output: false }
-  const transparentMeta = taskParams.transparent_output && !isMattingTask
+  const transparentMeta = taskParams.transparent_output
     ? createTransparentOutputMeta(task.prompt.trim())
     : null
   const taskId = genId()
