@@ -4513,7 +4513,6 @@ export async function submitMattingTask(options: {
   }
   const normalizedParams = normalizeParamsForSettings(createMattingTaskParams(), requestSettings, { hasInputImages: true })
   const taskParams = getMattingRequestParams(normalizedParams)
-  const transparentMeta = createTransparentOutputMeta(prompt)
 
   const taskId = genId()
   const task: TaskRecord = {
@@ -4528,8 +4527,6 @@ export async function submitMattingTask(options: {
     inputImageIds: [options.imageId],
     maskTargetImageId: null,
     maskImageId: null,
-    transparentOutput: true,
-    transparentPrompt: transparentMeta.effectivePrompt,
     outputImages: [],
     status: 'running',
     error: null,
@@ -4610,11 +4607,14 @@ export async function retryTask(task: TaskRecord) {
   const { settings } = useStore.getState()
   const activeProfile = getActiveApiProfile(settings)
   const normalizedParams = normalizeParamsForSettings(task.params, settings, { hasInputImages: task.inputImageIds.length > 0 })
-  const shouldUseTransparentOutput = normalizedParams.output_format === 'png' && normalizedParams.transparent_output
-  const taskParams = shouldUseTransparentOutput
-    ? getTransparentRequestParams(normalizedParams)
-    : { ...normalizedParams, transparent_output: false }
-  const transparentMeta = taskParams.transparent_output
+  const isMattingTask = task.sourceMode === 'matting'
+  const shouldUseTransparentOutput = !isMattingTask && normalizedParams.output_format === 'png' && normalizedParams.transparent_output
+  const taskParams = isMattingTask
+    ? getMattingRequestParams(normalizedParams)
+    : shouldUseTransparentOutput
+      ? getTransparentRequestParams(normalizedParams)
+      : { ...normalizedParams, transparent_output: false }
+  const transparentMeta = taskParams.transparent_output && !isMattingTask
     ? createTransparentOutputMeta(task.prompt.trim())
     : null
   const taskId = genId()
@@ -4638,6 +4638,13 @@ export async function retryTask(task: TaskRecord) {
     createdAt: Date.now(),
     finishedAt: null,
     elapsed: null,
+    ...(isMattingTask
+      ? {
+          sourceMode: task.sourceMode,
+          mattingBatchId: task.mattingBatchId,
+          mattingSourceFileName: task.mattingSourceFileName,
+        }
+      : {}),
   }
 
   const latestTasks = useStore.getState().tasks

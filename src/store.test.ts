@@ -123,7 +123,7 @@ import { clearAgentConversations, clearImages, clearTasks, getAllAgentConversati
 import { callAgentResponsesApi, callBatchImageSingle } from './lib/agentApi'
 import { getFalQueuedImageResult } from './lib/falAiImageApi'
 import { removeKeyedBackgroundFromDataUrl } from './lib/transparentImage'
-import { cleanStaleAgentInputDrafts, clearFailedTasks, deleteAgentRoundFromConversation, deleteFavoriteCollection, editOutputs, getActiveAgentRounds, getErrorToastMessage, getPersistedState, getTaskApiProfile, importData, initStore, markInterruptedOpenAIRunningTasks, migratePersistedState, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeTask, reuseConfig, submitAgentMessage, submitTask, taskMatchesFilterStatus, taskMatchesSearchQuery, useStore } from './store'
+import { cleanStaleAgentInputDrafts, clearFailedTasks, deleteAgentRoundFromConversation, deleteFavoriteCollection, editOutputs, getActiveAgentRounds, getErrorToastMessage, getPersistedState, getTaskApiProfile, importData, initStore, markInterruptedOpenAIRunningTasks, migratePersistedState, regenerateAgentAssistantMessage, remapAgentRoundMentionsForPathChange, removeTask, reuseConfig, submitAgentMessage, submitMattingTask, submitTask, taskMatchesFilterStatus, taskMatchesSearchQuery, useStore } from './store'
 
 const imageA = { id: 'image-a', dataUrl: 'data:image/png;base64,a' }
 const imageB = { id: 'image-b', dataUrl: 'data:image/png;base64,b' }
@@ -465,6 +465,71 @@ describe('interrupted OpenAI running tasks', () => {
     expect(result.tasks.find((item) => item.id === 'fal-running')).toEqual(falRunning)
     expect(result.tasks.find((item) => item.id === 'custom-running')).toEqual(customAsyncRunning)
     expect(result.tasks.find((item) => item.id === 'done-task')).toEqual(doneTask)
+  })
+})
+
+describe('matting task submission', () => {
+  beforeEach(async () => {
+    await clearTasks()
+    await clearImages()
+    vi.mocked(removeKeyedBackgroundFromDataUrl).mockClear()
+    const { callImageApi } = await import('./lib/api')
+    vi.mocked(callImageApi).mockClear()
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key' },
+      tasks: [],
+    })
+  })
+
+  it('requests native transparent PNG output without appending background instructions', async () => {
+    const { callImageApi } = await import('./lib/api')
+    vi.mocked(callImageApi).mockResolvedValueOnce({
+      images: ['data:image/png;base64,native-transparent'],
+      actualParams: { output_format: 'png' },
+      actualParamsList: [{ output_format: 'png' }],
+      revisedPrompts: [],
+    })
+    await putImage({
+      id: 'matting-input',
+      dataUrl: 'data:image/png;base64,input',
+      source: 'upload',
+      createdAt: 1,
+    })
+
+    await submitMattingTask({
+      imageId: 'matting-input',
+      dataUrl: 'data:image/png;base64,input',
+      fileName: 'input.png',
+      prompt: '只保留主体，输出透明 PNG',
+    })
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    expect(callImageApi).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: '只保留主体，输出透明 PNG',
+      params: expect.objectContaining({
+        output_format: 'png',
+        output_compression: null,
+        transparent_output: true,
+      }),
+    }))
+    expect(removeKeyedBackgroundFromDataUrl).not.toHaveBeenCalled()
+    const [task] = useStore.getState().tasks
+    expect(task).toMatchObject({
+      prompt: '只保留主体，输出透明 PNG',
+      sourceMode: 'matting',
+      status: 'done',
+      params: expect.objectContaining({
+        output_format: 'png',
+        transparent_output: true,
+      }),
+    })
+    expect(task.transparentOutput).toBeUndefined()
+    expect(task.transparentPrompt).toBeUndefined()
+    expect(task.transparentOriginalImages).toBeUndefined()
+    const outputImage = await getImage(task.outputImages[0])
+    expect(outputImage?.dataUrl).toBe('data:image/png;base64,native-transparent')
   })
 })
 
