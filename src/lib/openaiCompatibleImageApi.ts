@@ -40,6 +40,10 @@ function createOpenAICompatiblePaths() {
   }
 }
 
+function shouldRequestTransparentBackground(params: TaskParams): boolean {
+  return params.output_format === 'png' && params.transparent_output
+}
+
 function getByPath(source: unknown, path: string | undefined): unknown {
   if (!path) return source
   return path.split('.').filter(Boolean).reduce<unknown>((current, key) => {
@@ -209,6 +213,10 @@ function createResponsesImageTool(
 
   if (params.output_format !== 'png' && params.output_compression != null) {
     tool.output_compression = params.output_compression
+  }
+
+  if (shouldRequestTransparentBackground(params)) {
+    tool.background = 'transparent'
   }
 
   if (maskDataUrl) {
@@ -575,6 +583,9 @@ async function callImagesApiSingle(opts: CallApiOptions, profile: ApiProfile): P
       formData.append('size', params.size)
       formData.append('output_format', params.output_format)
       formData.append('moderation', params.moderation)
+      if (shouldRequestTransparentBackground(params)) {
+        formData.append('background', 'transparent')
+      }
 
       if (!profile.codexCli) {
         formData.append('quality', params.quality)
@@ -636,6 +647,9 @@ async function callImagesApiSingle(opts: CallApiOptions, profile: ApiProfile): P
         size: params.size,
         output_format: params.output_format,
         moderation: params.moderation,
+      }
+      if (shouldRequestTransparentBackground(params)) {
+        body.background = 'transparent'
       }
 
       if (!profile.codexCli) {

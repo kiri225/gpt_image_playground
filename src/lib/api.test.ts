@@ -36,6 +36,100 @@ describe('callImageApi', () => {
     },
   )
 
+  it('requests transparent background on Images API generation when transparent output is enabled', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: [{ b64_json: 'aW1hZ2U=' }],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await callImageApi({
+      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key', codexCli: true },
+      prompt: 'prompt',
+      params: {
+        ...DEFAULT_PARAMS,
+        output_format: 'png',
+        output_compression: null,
+        transparent_output: true,
+      },
+      inputImageDataUrls: [],
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    const body = JSON.parse(String((init as RequestInit).body))
+    expect(body).toMatchObject({
+      output_format: 'png',
+      background: 'transparent',
+    })
+  })
+
+  it('requests transparent background on Images API edits when transparent output is enabled', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).startsWith('data:')) {
+        return new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/png' },
+        })
+      }
+      return new Response(JSON.stringify({
+        data: [{ b64_json: 'aW1hZ2U=' }],
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    await callImageApi({
+      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key', codexCli: true },
+      prompt: 'prompt',
+      params: {
+        ...DEFAULT_PARAMS,
+        output_format: 'png',
+        output_compression: null,
+        transparent_output: true,
+      },
+      inputImageDataUrls: ['data:image/png;base64,aW1hZ2U='],
+    })
+
+    const [, init] = fetchMock.mock.calls.find(([input]) => !String(input).startsWith('data:'))!
+    const body = (init as RequestInit).body as FormData
+    expect(body.get('output_format')).toBe('png')
+    expect(body.get('background')).toBe('transparent')
+  })
+
+  it('requests transparent background on Responses image tools when transparent output is enabled', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      output: [{
+        type: 'image_generation_call',
+        result: 'aW1hZ2U=',
+      }],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    await callImageApi({
+      settings: { ...DEFAULT_SETTINGS, apiKey: 'test-key', apiMode: 'responses', codexCli: true },
+      prompt: 'prompt',
+      params: {
+        ...DEFAULT_PARAMS,
+        output_format: 'png',
+        output_compression: null,
+        transparent_output: true,
+      },
+      inputImageDataUrls: [],
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    const body = JSON.parse(String((init as RequestInit).body))
+    expect(body.tools[0]).toMatchObject({
+      type: 'image_generation',
+      output_format: 'png',
+      background: 'transparent',
+    })
+  })
+
   it('records actual params returned on Images API responses in Codex CLI mode', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
       output_format: 'png',
